@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sites Data</title>
+</head>
+
+<body>
+
+
+    <button type="button" id="urlGetApi" onclick="getData();">Get Data</button> <br><br>
+
+
+    <h2>Upload Key Words</h2> <br><br>
+    <input type="file" name="" id="fileInput"><br><br>
+
+    <button type="button" onclick="uploadData();">Upload Data</button>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        const allData = [];
+        const getData = async (page = 1) => {
+            try {
+                const response = await $.ajax({
+                    url: `./api/sites-data-scrap-get?page=${page}`,
+                    method: 'GET'
+                });
+
+                console.log('API Response:', response);
+                const data = response.data;
+                allData.push(...data);
+                if (response.nextPage) {
+                    getData(response.nextPage);
+                } else {
+                    exportToCSV(allData);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        };
+        const exportToCSV = (data) => {
+            const csv = convertToCSV(data);
+            const csvData = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const downloadLink = document.createElement('a');
+            downloadLink.href = window.URL.createObjectURL(csvData);
+            downloadLink.download = 'data.csv';
+            downloadLink.click();
+        };
+
+        function convertToCSV(data) {
+            var csv = '';
+            var keys = Object.keys(data[0]);
+            csv += keys.map(key => `"${key}"`).join(',') + '\n';
+            data.forEach(function (row) {
+                keys.forEach(function (key) {
+                    csv += `"${row[key] || ''}",`;
+                });
+                csv += '\n';
+            });
+            return csv;
+        }
+
+
+        const uploadData = async () => {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = async function (e) {
+                const contents = e.target.result;
+                const data = await parseCSV(contents);
+                const batchSize = 150;
+                if (data.length <= batchSize) {
+                    await sendDataToAPI(data);
+                } else {
+                    for (let i = 0; i < data.length; i += batchSize) {
+                        const chunk = data.slice(i, i + batchSize);
+                        await sendDataToAPI(chunk);
+                    }
+                }
+                console.log(data); // You can do anything with the data here
+            };
+
+            reader.readAsText(file);
+        }
+
+        async function sendDataToAPI(data) {
+            $.ajax({
+                url: "./api/sites-data-scrap-key-word-add",
+                method: 'POST',
+                data: {
+                    'keyWordData': data,
+                },
+                success: function (response) {
+                    console.log('API Response:', response);
+                    // Extract data from the response
+                },
+                error: function (xhr, status, error) {
+                    console.error('Error:', error);
+                }
+            });
+        }
+
+        function parseCSV(csv) {
+            const lines = csv.split('\n');
+            const result = [];
+
+            const headers = lines[0].split(',');
+
+            for (let i = 1; i < lines.length; i++) {
+                const obj = {};
+                const currentline = lines[i].split(',');
+
+                for (let j = 0; j < headers.length; j++) {
+                    obj[headers[j]] = currentline[j];
+                }
+
+                result.push(obj);
+            }
+
+            return result;
+        }
+
+
+
+    </script>
+</body>
+
+</html>
